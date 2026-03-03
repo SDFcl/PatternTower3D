@@ -2,83 +2,70 @@ using UnityEngine;
 
 public class Tower : MonoBehaviour
 {
-    [SerializeField] private LayerMask enemyLayer;
-    public float range = 5f;
-    public float fireRate = 1f;
-    private float fireTimer = 0f;
-    public int maxHP = 100;
-    private int currentHP;
+    [Header("Stats ปรับตามประเภทป้อม")]
+    [SerializeField] private float fireRate = 1.5f;     // Basic = เร็ว, Sniper = ช้าแต่แรง
+    [SerializeField] private int damage = 25;
+    [SerializeField] private float range = 6f;
 
-    // เพิ่มตัวแปรอ้างอิง Base (จุดจบทางเดิน)
-    public Transform basePoint;  // ลาก Base/EndPoint จาก Scene เข้า slot นี้ใน Inspector
+    [Header("ส่วนประกอบ")]
+    [SerializeField] private Transform firePoint;       // จุดปล่อยกระสุน (ลูกของ Tower)
 
-    void Start()
+    private float nextFireTime = 0f;
+
+    private void Update()
     {
-        currentHP = maxHP;
-        if (basePoint == null)
+        if (Time.time < nextFireTime) return;
+
+        Transform target = FindNearestEnemy();
+        if (target != null)
         {
-            Debug.LogWarning("Tower ไม่มี basePoint กำหนด! ยิงแบบ closest แทน");
+            Shoot(target);
+            nextFireTime = Time.time + fireRate;
         }
     }
 
-    void Update()
+    private Transform FindNearestEnemy()
     {
-        fireTimer += Time.deltaTime;
-        if (fireTimer >= fireRate)
+        Collider[] hits = Physics.OverlapSphere(transform.position, range);
+        Transform nearest = null;
+        float minDist = float.MaxValue;
+
+        foreach (var hit in hits)
         {
-            Collider[] hits = Physics.OverlapSphere(transform.position, range, enemyLayer);
-
-            if (hits.Length > 0)
+            if (hit.CompareTag("Enemy"))
             {
-                Collider targetEnemy = null;
-
-                if (basePoint != null)
+                float dist = Vector3.Distance(transform.position, hit.transform.position);
+                if (dist < minDist)
                 {
-                    // ยิงตัวหน้าสุด = ตัวที่ไกลจาก Base ที่สุด
-                    float maxDistToBase = -1f;
-                    foreach (var col in hits)
-                    {
-                        float distToBase = Vector3.Distance(col.transform.position, basePoint.position);
-                        if (distToBase > maxDistToBase)
-                        {
-                            maxDistToBase = distToBase;
-                            targetEnemy = col;
-                        }
-                    }
-                }
-                else
-                {
-                    // ถ้าไม่มี basePoint ใช้ closest (fallback)
-                    float minDistToTower = float.MaxValue;
-                    foreach (var col in hits)
-                    {
-                        float dist = Vector3.Distance(transform.position, col.transform.position);
-                        if (dist < minDistToTower)
-                        {
-                            minDistToTower = dist;
-                            targetEnemy = col;
-                        }
-                    }
-                }
-
-                if (targetEnemy != null)
-                {
-                    GameObject bulletObj = ObjectPool.Instance.GetBullet();
-                    if (bulletObj != null)
-                    {
-                        bulletObj.transform.position = transform.position + Vector3.up * 1.5f;
-                        bulletObj.transform.rotation = Quaternion.LookRotation(targetEnemy.transform.position - transform.position);
-
-                        Bullet bullet = bulletObj.GetComponent<Bullet>();
-                        if (bullet != null)
-                        {
-                            bullet.LaunchTowards(targetEnemy.transform);
-                            Debug.Log("Tower ยิง Enemy ตัวหน้าสุด: " + targetEnemy.name);
-                        }
-                        fireTimer = 0f;
-                    }
+                    minDist = dist;
+                    nearest = hit.transform;
                 }
             }
         }
+        return nearest;
+    }
+
+    private void Shoot(Transform target)
+    {
+        if (firePoint == null || ObjectPool.Instance == null) return;
+
+        GameObject bullet = ObjectPool.Instance.GetBullet();
+        if (bullet == null) return;
+
+        bullet.transform.position = firePoint.position;
+        bullet.transform.rotation = firePoint.rotation;
+
+        Bullet bulletScript = bullet.GetComponent<Bullet>();
+        if (bulletScript != null)
+        {
+            bulletScript.SetTarget(target);
+            bulletScript.SetDamage(damage);  // ส่งดาเมจจากป้อมไป
+        }
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, range);
     }
 }

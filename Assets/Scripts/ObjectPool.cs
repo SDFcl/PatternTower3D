@@ -1,69 +1,127 @@
-using System.Collections.Generic;
+Ôªøusing System.Collections.Generic;
 using UnityEngine;
 
 public class ObjectPool : MonoBehaviour
 {
-    public static ObjectPool Instance;  // Singleton: ‡√’¬°„™È∑ÿ°∑’Ë
+    public static ObjectPool Instance { get; private set; }
 
-    [Header("Pool Settings")]
-    public GameObject enemyPrefab;
-    public int poolSize = 50;  // Pre-create 50 Enemies
+    [Header("Enemy Pool")]
+    [SerializeField] private GameObject enemyPrefab;
+    [SerializeField] private int enemyPoolSize = 20;
+    [SerializeField] private Transform enemyPoolParent;  // optional ‡πÅ‡∏ï‡πà‡πÅ‡∏ô‡∏∞‡∏ô‡∏≥
+
+    [Header("Bullet Pool")]
+    [SerializeField] private GameObject bulletPrefab;
+    [SerializeField] private int bulletPoolSize = 50;
+    [SerializeField] private Transform bulletPoolParent; // optional
+
     private Queue<GameObject> enemyPool = new Queue<GameObject>();
-
-    void Awake()
-    {
-        Instance = this;  // Singleton Init
-        CreatePool();
-    }
-
-    public GameObject bulletPrefab;
     private Queue<GameObject> bulletPool = new Queue<GameObject>();
 
-    void CreatePool()
+    private void Awake()
     {
-        // ... Enemy pool ‡¥‘¡
-        for (int i = 0; i < 100; i++)
-        {  // Pool Bullet 100 ≈Ÿ°
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
+
+    private void Start()
+    {
+        if (enemyPrefab == null || bulletPrefab == null)
+        {
+            Debug.LogError("ObjectPool: ‡∏¢‡∏±‡∏á‡πÑ‡∏°‡πà‡πÑ‡∏î‡πâ‡∏•‡∏≤‡∏Å Prefab ‡∏°‡∏≤!");
+            return;
+        }
+
+        // ‡∏™‡∏£‡πâ‡∏≤‡∏á Enemy Pool
+        for (int i = 0; i < enemyPoolSize; i++)
+        {
+            GameObject enemy = Instantiate(enemyPrefab);
+            enemy.SetActive(false);
+            if (enemyPoolParent != null) enemy.transform.SetParent(enemyPoolParent);
+            enemyPool.Enqueue(enemy);
+        }
+
+        // ‡∏™‡∏£‡πâ‡∏≤‡∏á Bullet Pool
+        for (int i = 0; i < bulletPoolSize; i++)
+        {
             GameObject bullet = Instantiate(bulletPrefab);
             bullet.SetActive(false);
+            if (bulletPoolParent != null) bullet.transform.SetParent(bulletPoolParent);
             bulletPool.Enqueue(bullet);
         }
     }
 
-    public GameObject GetBullet()
-    {
-        if (bulletPool.Count > 0)
-        {
-            GameObject b = bulletPool.Dequeue();
-            b.SetActive(true);
-            return b;
-        }
-        return Instantiate(bulletPrefab); // Fallback
-    }
-
-    public void ReturnBullet(GameObject bullet)
-    {
-        bullet.SetActive(false);
-        bulletPool.Enqueue(bullet);
-    }
-
+    // Enemy
     public GameObject GetEnemy()
     {
+        GameObject enemy;
         if (enemyPool.Count > 0)
         {
-            GameObject enemy = enemyPool.Dequeue();
-            enemy.SetActive(true);
-            return enemy;
+            enemy = enemyPool.Dequeue();
         }
-        // ∂È“ Pool À¡¥:  √È“ß„À¡Ë (Fallback)
-        return Instantiate(enemyPrefab);
+        else
+        {
+            enemy = Instantiate(enemyPrefab);
+            if (enemyPoolParent != null) enemy.transform.SetParent(enemyPoolParent);
+        }
+        enemy.SetActive(true);
+        return enemy;
     }
 
     public void ReturnEnemy(GameObject enemy)
     {
+        if (enemy == null) return;
         enemy.SetActive(false);
-        enemyPool.Enqueue(enemy);  // °≈—∫ Pool √Õ Reuse
+        enemy.transform.localPosition = Vector3.zero;
+        enemy.transform.localRotation = Quaternion.identity;
+
+        Rigidbody rb = enemy.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        enemyPool.Enqueue(enemy);
     }
 
+    // Bullet
+    public GameObject GetBullet()
+    {
+        GameObject bullet;
+        if (bulletPool.Count > 0)
+        {
+            bullet = bulletPool.Dequeue();
+        }
+        else
+        {
+            bullet = Instantiate(bulletPrefab);
+            if (bulletPoolParent != null) bullet.transform.SetParent(bulletPoolParent);
+        }
+        bullet.SetActive(true);
+        return bullet;
+    }
 
+    public void ReturnBullet(GameObject bullet)
+    {
+        if (bullet == null) return;
+        bullet.SetActive(false);
+        bullet.transform.localPosition = Vector3.zero;
+        bullet.transform.localRotation = Quaternion.identity;
+
+        Rigidbody rb = bullet.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        bulletPool.Enqueue(bullet);
+    }
 }

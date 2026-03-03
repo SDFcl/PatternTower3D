@@ -1,37 +1,104 @@
 using UnityEngine;
 
-public static class TowerFactory
+public class TowerFactory : MonoBehaviour
 {
-    public static GameObject Create(string towerType, Vector3 position, Transform basePoint)
+    public static TowerFactory Instance { get; private set; }
+
+    [Header("Prefabs")]
+    [SerializeField] private GameObject basicTowerPrefab;
+    [SerializeField] private GameObject sniperTowerPrefab;
+    [SerializeField] private GameObject thirdTowerPrefab;     // Tower แบบที่ 3
+
+    [Header("Preview Material (optional)")]
+    [SerializeField] private Material previewMaterial;        // Material โปร่งแสง
+
+    private void Awake()
     {
-        GameObject towerPrefab = null;
-
-        // Factory Logic – ไม่ต้อง if-else ยาว เพิ่ม type ใหม่แค่เพิ่มบรรทัด
-        switch (towerType)
+        if (Instance == null)
         {
-            case "Cannon":
-                towerPrefab = Resources.Load<GameObject>("Prefabs/Towers/Cannon_Tower");
-                break;
-            case "Turret":
-                towerPrefab = Resources.Load<GameObject>("Prefabs/Towers/Turret-Tower");
-                break;
-            case "Ballista":
-                towerPrefab = Resources.Load<GameObject>("Prefabs/Towers/Ballista_Tower");
-                break;
-            default:
-                Debug.LogError("Unknown tower type: " + towerType);
-                return null;
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    public GameObject CreateTower(string type, Vector3 position)
+    {
+        GameObject prefab = GetPrefabByType(type);
+        if (prefab == null) return null;
+
+        position.y -= 0.2f;
+
+        GameObject tower = Instantiate(prefab, position, Quaternion.identity);
+        tower.name = type + " Tower";
+        return tower;
+    }
+
+    public GameObject CreateTowerPreview(string type)
+    {
+        GameObject prefab = GetPrefabByType(type);
+        if (prefab == null) return null;
+
+        GameObject preview = Instantiate(prefab, Vector3.zero, Quaternion.identity);
+        preview.name = type + "_Preview";
+
+        // ทำให้เป็น Preview (โปร่งแสง + ไม่ชน)
+        SetPreviewAppearance(preview);
+
+        return preview;
+    }
+
+    private GameObject GetPrefabByType(string type)
+    {
+        return type switch
+        {
+            "Basic" => basicTowerPrefab,
+            "Sniper" => sniperTowerPrefab,
+            "Third" => thirdTowerPrefab,     // เปลี่ยนชื่อจริงของคุณ
+            _ => null
+        };
+    }
+
+    private void SetPreviewAppearance(GameObject preview)
+    {
+        Renderer[] renderers = preview.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            if (previewMaterial != null)
+            {
+                renderer.material = previewMaterial;
+            }
+            else
+            {
+                Color c = renderer.material.color;
+                c.a = 0.5f;
+                renderer.material.color = c;
+            }
         }
 
-        if (towerPrefab != null)
+        // ปิด Collider ชั่วคราว (ไม่ให้ Raycast ชน)
+        Collider[] colliders = preview.GetComponentsInChildren<Collider>();
+        foreach (var col in colliders) col.enabled = false;
+    }
+
+    // ฟังก์ชันช่วยเหลือ (สมมติว่ามีระบบเงิน)
+    public bool CanAfford(string type)
+    {
+        int cost = GetTowerCost(type);
+        return GameManager.Instance.money >= cost;
+    }
+
+    public int GetTowerCost(string type)
+    {
+        return type switch
         {
-            GameObject newTower = Object.Instantiate(towerPrefab, position, Quaternion.identity);
-            Tower _tower = newTower.gameObject.GetComponent<Tower>();
-            _tower.basePoint = basePoint;
-
-            return newTower;
-        }
-
-        return null;
+            "Basic" => 50,
+            "Sniper" => 120,
+            "Third" => 80,     // ปรับตามจริง
+            _ => 0
+        };
     }
 }
